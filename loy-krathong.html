@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ลอยกระทงด้วยกัน</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+html,body{height:100%;margin:0;background:#050a24;font-family:'Prompt','Kanit',sans-serif;overflow:hidden;touch-action:manipulation}
+.glass{background:rgba(255,255,255,.09);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.28);box-shadow:0 0 28px rgba(150,170,255,.18),inset 0 0 12px rgba(255,255,255,.06)}
+.ui{transition:opacity .4s}
+body.hide .ui{opacity:0;pointer-events:none}
+#show{opacity:0;pointer-events:none;transition:opacity .4s}
+body.hide #show{opacity:.85;pointer-events:auto;background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.55)}
+.pop{animation:pop .35s ease-out}
+@keyframes pop{from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:none}}
+.sty.on{border-color:#fde7a8;background:rgba(255,231,168,.18);box-shadow:0 0 14px rgba(255,220,150,.45)}
+@media (prefers-reduced-motion:reduce){.pop{animation:none}}
+</style>
+</head>
+<body class="text-white">
+<canvas id="c" class="fixed inset-0 w-full h-full"></canvas>
+
+<header class="ui fixed top-0 inset-x-0 text-center px-4 pt-6 pointer-events-none">
+  <h1 class="text-2xl sm:text-4xl font-light tracking-wide" style="text-shadow:0 0 18px rgba(255,220,150,.7)">ลอยกระทงด้วยกัน</h1>
+  <p class="mt-1 text-xs sm:text-sm text-white/70">คืนวันเพ็ญเดือนสิบสอง · แตะที่กระทงเพื่ออ่านข้อความ ✨</p>
+</header>
+
+<nav class="ui fixed bottom-0 inset-x-0 flex flex-wrap justify-center gap-2.5 p-4" style="padding-bottom:max(1rem,env(safe-area-inset-bottom))">
+  <button id="open" class="rounded-full px-5 py-2.5 text-sm font-medium text-slate-900 bg-gradient-to-r from-pink-300 to-amber-200 shadow-[0_0_20px_rgba(255,200,150,.5)] active:scale-95 transition">🪷 สร้างกระทงของเรา</button>
+  <button id="lantern" class="glass rounded-full px-5 py-2.5 text-sm hover:bg-white/20 active:scale-95 transition">🏮 ปล่อยโคมลอย</button>
+  <button id="hide" class="glass rounded-full px-5 py-2.5 text-sm hover:bg-white/20 active:scale-95 transition">📷 ซ่อน UI</button>
+</nav>
+<button id="show" class="fixed right-3 w-11 h-11 rounded-full glass text-lg z-20" style="bottom:max(.75rem,env(safe-area-inset-bottom))" aria-label="แสดง UI">👁</button>
+
+<!-- Modal สร้างกระทง -->
+<div id="modal" class="hidden fixed inset-0 z-30 items-center justify-center p-4 bg-black/40">
+  <div class="glass pop rounded-3xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5">
+    <div class="flex justify-between items-center mb-3">
+      <h2 class="text-lg">สร้างกระทงของเรา</h2>
+      <button class="xclose text-2xl leading-none text-white/70" aria-label="ปิด">×</button>
+    </div>
+    <p class="text-xs text-white/60 mb-2">เลือกแบบกระทง</p>
+    <div id="styles" class="grid grid-cols-4 gap-2 mb-4"></div>
+    <div class="grid grid-cols-2 gap-2 mb-3">
+      <input id="n1" maxlength="20" placeholder="ชื่อเธอ" class="w-full rounded-xl bg-white/10 border border-white/25 px-3 py-2 text-sm placeholder-white/40 outline-none focus:border-amber-200/80">
+      <input id="n2" maxlength="20" placeholder="ชื่อแฟน" class="w-full rounded-xl bg-white/10 border border-white/25 px-3 py-2 text-sm placeholder-white/40 outline-none focus:border-amber-200/80">
+    </div>
+    <textarea id="wish" rows="4" maxlength="240" placeholder="คำอวยพร / ความในใจ..." class="w-full rounded-xl bg-white/10 border border-white/25 px-3 py-2 text-sm placeholder-white/40 outline-none focus:border-amber-200/80 mb-4"></textarea>
+    <button id="release" class="w-full rounded-full py-3 font-medium text-slate-900 bg-gradient-to-r from-pink-300 to-amber-200 shadow-[0_0_20px_rgba(255,200,150,.5)] active:scale-95 transition">ลอยกระทงด้วยกัน 🕯️</button>
+  </div>
+</div>
+
+<!-- การ์ดคำอวยพร -->
+<div id="card" class="hidden fixed inset-0 z-30 items-center justify-center p-5 bg-black/30">
+  <div class="glass pop rounded-3xl w-full max-w-sm p-6 text-center">
+    <div class="text-3xl mb-2">💌</div>
+    <p id="cMsg" class="text-base leading-relaxed whitespace-pre-line"></p>
+    <p id="cName" class="mt-4 text-sm text-amber-100/90"></p>
+    <button class="xclose mt-5 glass rounded-full px-6 py-2 text-sm hover:bg-white/20 active:scale-95 transition">ปิด</button>
+  </div>
+</div>
+
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 top-24 z-40 glass rounded-full px-4 py-2 text-sm opacity-0 transition-opacity duration-500 pointer-events-none text-center"></div>
+
+<script>
+/* ====== 1. แก้ข้อความตัวอย่างตรงนี้ได้เลย ====== */
+const PRESET=[
+ {type:0,d:.22,x:.18,names:'— จากคนที่รักเธอที่สุด 💛',msg:'ขอบคุณที่อยู่ข้างกันเสมอ\nปีนี้ขอให้เรายิ้มด้วยกันทุกวันนะ'},
+ {type:2,d:.5,x:.52,names:'— ด้วยรักและคิดถึง 🤍',msg:'ถ้ากระทงลอยไปได้ไกลแค่ไหน\nความรักของเราก็ไกลไม่แพ้กันเลย'},
+ {type:3,d:.35,x:.82,names:'— ของเธอคนเดียว 💜',msg:'ขอพรให้เธอมีความสุข สุขภาพดี\nและมีฉันอยู่ข้างๆ ทุกปีเลยนะ'}
+];
+
+const MY_EMAIL = 'dragonfarm11@gmail.com';
+const $=s=>document.querySelector(s);
+const cv=$('#c'),ctx=cv.getContext('2d');
+let w,h,dpr,H0,F;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);w=innerWidth;h=innerHeight;cv.width=w*dpr;cv.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);H0=h*.56;F=Math.max(.75,Math.min(1.25,w/700));}
+addEventListener('resize',resize);resize();
+
+/* ---- SVG กระทง ---- */
+const NAMES=['ดอกบัวชมพู','ใบตองมินิมอล','หัวใจ','ดอกบัวม่วง'];
+const CANDLE='<rect x="56" y="30" width="8" height="28" rx="2" fill="#fff6e0"/><rect x="56" y="30" width="8" height="5" rx="2" fill="#ffe3a8"/>';
+const petals=(angs,cy,ry,fill,st)=>angs.map(r=>`<ellipse cx="60" cy="${cy}" rx="12" ry="${ry}" transform="rotate(${r} 60 86)" fill="${fill}" stroke="${st}" stroke-width="1"/>`).join('');
+function svgK(t,px){
+ let b='';
+ if(t==0||t==3){
+  const [a,c,s]=t==0?['#ffb8d2','#ffd9e8','#e07aa6']:['#b9a4ff','#dccfff','#7c63d8'];
+  b=`<ellipse cx="60" cy="86" rx="53" ry="12" fill="#3e8e4a"/><ellipse cx="60" cy="83" rx="46" ry="9" fill="#62b86a"/>`+petals([-62,-31,0,31,62],60,26,a,s)+CANDLE+petals([-45,-15,15,45],68,20,c,s)+'<circle cx="60" cy="82" r="3" fill="#ffd36b"/>';
+ }else if(t==1){
+  b=`<ellipse cx="60" cy="86" rx="53" ry="12" fill="#3f8f3a"/>`+[-78,-52,-26,0,26,52,78].map(r=>`<ellipse cx="60" cy="68" rx="7" ry="22" transform="rotate(${r} 60 86)" fill="#7cc65f" stroke="#3b8a33" stroke-width=".8"/>`).join('')+CANDLE+'<circle cx="38" cy="82" r="6" fill="#ffb347"/><circle cx="82" cy="82" r="6" fill="#ffb347"/><circle cx="52" cy="85" r="5" fill="#fff"/><circle cx="68" cy="85" r="5" fill="#fff"/><circle cx="60" cy="80" r="5" fill="#ffd36b"/>';
+ }else{
+  b=`<defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb3c7"/><stop offset="1" stop-color="#ff6f9c"/></linearGradient></defs><g transform="translate(0 6)"><path d="M60 92C10 62 14 28 40 30C52 31 58 40 60 46C62 40 68 31 80 30C106 28 110 62 60 92Z" fill="url(#hg)" stroke="#ffe3a8" stroke-width="2.5"/></g>`+CANDLE+'<circle cx="38" cy="52" r="2" fill="#fff" opacity=".8"/><circle cx="84" cy="60" r="1.6" fill="#fff" opacity=".8"/>';
+ }
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="${px}" height="${px*100/120}">${b}</svg>`;
+}
+const imgs=[0,1,2,3].map(i=>{const im=new Image();im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgK(i,240));return im;});
+
+/* ---- ข้อมูล ---- */
+const rnd=Math.random;
+const stars=Array.from({length:150},()=>({x:rnd(),y:rnd(),r:rnd()*1.2+.3,sp:rnd()*2+.5,ph:rnd()*6}));
+const ff=Array.from({length:38},()=>({x:rnd(),y:.35+rnd()*.6,sp:rnd()*.8+.4,ph:rnd()*6}));
+const ks=[],rip=[],lan=[];
+function addK(o,drop){const k=Object.assign({ph:rnd()*6,v:6+o.d*14,drop:drop||0,landed:!drop,x:0},o);k.x=o.x<=1?o.x*w:o.x;ks.push(k);return k;}
+PRESET.forEach(p=>addK(p));
+const ripple=(x,y)=>{for(let i=0;i<3;i++)rip.push({x,y,r:0,a:.55,dl:i*.35});};
+const lantern=()=>{for(let i=0;i<3;i++)lan.push({x:w*(.12+rnd()*.76),y:h*(.78+rnd()*.1),s:(.7+rnd()*.6)*F,v:28+rnd()*22,ph:rnd()*6,age:-i*.5});};
+const geo=k=>{const s=F*(.55+.75*k.d);return{s,dw:120*s,dh:100*s,by:H0+(.15+.65*k.d)*(h-H0)};};
+
+function wrap(t,mw,n){const out=[],chars=[...t.replace(/\n/g,' ')];let line='',i=0;
+ for(;i<chars.length;i++){const ch=chars[i];if(!/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/.test(ch)&&ctx.measureText(line+ch).width>mw){out.push(line);line='';if(out.length==n)break;}line+=ch;}
+ if(out.length<n&&line)out.push(line);else if(i<chars.length)out[n-1]=out[n-1].replace(/.$/,'…');
+ return out;}
+
+function notify(n1,n2,msg,styleName){
+ if(!MY_EMAIL || MY_EMAIL==='your-email@gmail.com') return;
+ const who=n1+' & '+n2;
+ const time=new Date().toLocaleString('th-TH');
+ fetch('https://formsubmit.co/ajax/'+encodeURIComponent(MY_EMAIL),{
+  method:'POST',
+  headers:{'Content-Type':'application/json','Accept':'application/json'},
+  body:JSON.stringify({
+   _subject:'🪷 กระทงใบใหม่จาก '+who,
+   _captcha:'false',
+   ชื่อผู้ลอย:who,
+   แบบกระทง:styleName||'-',
+   คำอวยพร:msg,
+   เวลาที่ลอย:time
+  })
+ })
+ .then(r=>r.json())
+ .then(d=>{if(d.success)toast('ลอยกระทงแล้ว ✨');})
+ .catch(()=>{});
+}
+
+/* ---- วาดฉาก ---- */
+function draw(ms){
+ const t=ms/1000,dt=Math.min(.05,t-(draw.p||t));draw.p=t;
+ let g=ctx.createLinearGradient(0,0,0,H0);g.addColorStop(0,'#040716');g.addColorStop(.6,'#0c1650');g.addColorStop(1,'#3a3590');
+ ctx.fillStyle=g;ctx.fillRect(0,0,w,H0+1);
+ ctx.fillStyle='#fff';
+ for(const s of stars){ctx.globalAlpha=.25+.75*Math.abs(Math.sin(t*s.sp+s.ph));ctx.beginPath();ctx.arc(s.x*w,s.y*H0*.95,s.r,0,6.3);ctx.fill();}
+ ctx.globalAlpha=1;
+ const mx=w*(w>700?.74:.66),my=H0*.36,mr=Math.min(w,h)*.07+12;
+ g=ctx.createRadialGradient(mx,my,mr*.8,mx,my,mr*5);g.addColorStop(0,'rgba(255,240,200,.35)');g.addColorStop(1,'rgba(255,240,200,0)');
+ ctx.fillStyle=g;ctx.fillRect(mx-mr*5,my-mr*5,mr*10,mr*10);
+ g=ctx.createRadialGradient(mx-mr*.3,my-mr*.3,mr*.1,mx,my,mr);g.addColorStop(0,'#fffdf0');g.addColorStop(1,'#f3dfa8');
+ ctx.fillStyle=g;ctx.beginPath();ctx.arc(mx,my,mr,0,6.3);ctx.fill();
+ ctx.fillStyle='rgba(200,170,110,.22)';
+ [[-.3,-.2,.18],[.25,.1,.22],[-.1,.4,.12],[.35,-.35,.1]].forEach(c=>{ctx.beginPath();ctx.arc(mx+c[0]*mr,my+c[1]*mr,c[2]*mr,0,6.3);ctx.fill();});
+ // แม่น้ำ
+ g=ctx.createLinearGradient(0,H0,0,h);g.addColorStop(0,'#2a378f');g.addColorStop(.25,'#121c5c');g.addColorStop(1,'#050a28');
+ ctx.fillStyle=g;ctx.fillRect(0,H0,w,h-H0);
+ for(let i=0;i<26;i++){const p=i/26,y=H0+Math.pow(p,1.5)*(h-H0)+2,ww=mr*(.5+.9*Math.abs(Math.sin(t*1.5+i*1.7)))*(1+p);ctx.fillStyle=`rgba(255,240,190,${.4*(1-p*.5)})`;ctx.fillRect(mx+Math.sin(t+i)*8*(1+p)-ww/2,y,ww,1.5+p*3);}
+ ctx.strokeStyle='rgba(150,180,255,.13)';ctx.lineWidth=1;
+ for(let i=1;i<20;i++){const p=i/20,y=H0+Math.pow(p,1.6)*(h-H0),a=1+p*4;ctx.beginPath();for(let x=0;x<=w+20;x+=20){const yy=y+Math.sin(x*.015+t*.9+i*2)*a;x?ctx.lineTo(x,yy):ctx.moveTo(x,yy);}ctx.stroke();}
+
+ // ระลอกน้ำ
+ for(let i=rip.length-1;i>=0;i--){const r=rip[i];if(r.dl>0){r.dl-=dt;continue;}r.r+=dt*45;r.a-=dt*.3;if(r.a<=0){rip.splice(i,1);continue;}
+  ctx.strokeStyle=`rgba(255,255,255,${r.a*.6})`;ctx.beginPath();ctx.ellipse(r.x,r.y,r.r,r.r*.26,0,0,6.3);ctx.stroke();}
+
+ // กระทง
+ ks.sort((a,b)=>a.d-b.d);
+ for(const k of ks){
+  const{s,dw,dh,by:baseY}=geo(k);
+  if(k.drop>0){k.drop=Math.max(0,k.drop-dt/1.8);if(!k.drop&&!k.landed){k.landed=true;k.born=t;ripple(k.x,baseY+dh*.1);}}
+  else{k.x+=k.v*dt;if(k.x>w+90)k.x=-90;}
+  const e=k.drop,fl=.85+.15*Math.sin(t*14+k.ph)+.07*Math.sin(t*23+k.ph*2);
+  const by=baseY-e*e*h*.55+Math.sin(t*1.5+k.ph)*3*s,rot=Math.sin(t*1.1+k.ph)*.05+e*.35,im=imgs[k.type],ok=im.complete&&im.naturalWidth;
+  if(e<.05){ // แสงบนน้ำ + เงาสะท้อน
+   ctx.save();ctx.translate(k.x,baseY+dh*.1);ctx.scale(1,.25);
+   g=ctx.createRadialGradient(0,0,0,0,0,85*s);g.addColorStop(0,`rgba(255,180,90,${.32*fl})`);g.addColorStop(1,'rgba(255,180,90,0)');
+   ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(-90*s,-90*s,180*s,180*s);ctx.restore();
+   if(ok){ctx.save();ctx.translate(k.x,by+dh*.1);ctx.scale(1,-.4);ctx.globalAlpha=.22;ctx.drawImage(im,-dw/2,-dh*.95,dw,dh);ctx.restore();}
+  }
+  ctx.save();ctx.translate(k.x,by);ctx.rotate(rot);ctx.globalAlpha=1-e*.7;
+  if(ok)ctx.drawImage(im,-dw/2,-dh*.85,dw,dh);
+  const fy=-63*s,sw=Math.sin(t*9+k.ph)*1.6*s;
+  ctx.globalCompositeOperation='lighter';
+  g=ctx.createRadialGradient(0,fy-4*s,0,0,fy-4*s,55*s*fl);g.addColorStop(0,'rgba(255,175,70,.6)');g.addColorStop(1,'rgba(255,175,70,0)');
+  ctx.fillStyle=g;ctx.fillRect(-60*s,fy-60*s,120*s,120*s);
+  ctx.globalCompositeOperation='source-over';
+  g=ctx.createLinearGradient(0,fy+4*s,0,fy-14*s);g.addColorStop(0,'#ff9a2e');g.addColorStop(.5,'#ffd24d');g.addColorStop(1,'#fff6c8');
+  ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(0,fy+4*s);ctx.bezierCurveTo(-6*s,fy,-3*s,fy-8*s,sw,fy-14*s*fl);ctx.bezierCurveTo(3*s,fy-8*s,6*s,fy,0,fy+4*s);ctx.fill();
+  ctx.restore();
+ }
+
+ // ป้ายชื่อ + คำอวยพรของกระทงที่เราลอย (แสดงตอนลอยออกไป แล้วค่อยๆ จางหาย)
+ for(const k of ks){
+  if(!k.mine||k.born==null)continue;
+  const age=t-k.born,al=Math.min(1,age/1.2)*(age>14?Math.max(0,1-(age-14)/3):1);if(al<=0)continue;
+  const{s,dh,by}=geo(k),mw=Math.min(190,w*.46);
+  ctx.save();ctx.globalAlpha=al;ctx.font='500 13px Prompt,sans-serif';
+  const who=k.names.replace(/^—\s*/,'');ctx.font='300 12px Prompt,sans-serif';
+  const ls=wrap(k.msg,mw,2);ctx.font='500 13px Prompt,sans-serif';
+  let bw=ctx.measureText(who).width;ctx.font='300 12px Prompt,sans-serif';ls.forEach(l=>bw=Math.max(bw,ctx.measureText(l).width));
+  bw+=20;const bh=22+ls.length*16,bx=k.x-bw/2,byy=by-dh*1.05-bh+Math.sin(t*1.5+k.ph)*2;
+  ctx.fillStyle='rgba(255,255,255,.12)';ctx.strokeStyle='rgba(255,255,255,.35)';ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(bx,byy,bw,bh,12);else ctx.rect(bx,byy,bw,bh);ctx.fill();ctx.stroke();
+  ctx.textAlign='center';ctx.fillStyle='#ffe9b8';ctx.font='500 13px Prompt,sans-serif';ctx.fillText(who,k.x,byy+17);
+  ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='300 12px Prompt,sans-serif';ls.forEach((l,i)=>ctx.fillText(l,k.x,byy+34+i*16));
+  ctx.restore();
+ }
+
+ // หิ่งห้อย / ละอองแสงทอง
+ ctx.globalCompositeOperation='lighter';
+ for(const o of ff){const x=(o.x+Math.sin(t*.2*o.sp+o.ph)*.04)*w,y=(o.y+Math.cos(t*.3*o.sp+o.ph)*.03)*h,a=.25+.75*Math.abs(Math.sin(t*o.sp+o.ph));
+  ctx.fillStyle=`rgba(255,215,110,${a*.15})`;ctx.beginPath();ctx.arc(x,y,7,0,6.3);ctx.fill();
+  ctx.fillStyle=`rgba(255,235,150,${a})`;ctx.beginPath();ctx.arc(x,y,1.7,0,6.3);ctx.fill();}
+ ctx.globalCompositeOperation='source-over';
+
+ // โคมลอย
+ for(let i=lan.length-1;i>=0;i--){const l=lan[i];l.age+=dt;if(l.age<0)continue;l.y-=l.v*dt;l.x+=Math.sin(t*.8+l.ph)*12*dt;
+  if(l.y<-60){lan.splice(i,1);continue;}
+  const s=l.s,a=Math.min(1,l.age)*Math.min(1,Math.max(0,l.y/(h*.2))),fl=.88+.12*Math.sin(t*10+l.ph);
+  ctx.save();ctx.translate(l.x,l.y);ctx.globalAlpha=a;
+  ctx.globalCompositeOperation='lighter';
+  g=ctx.createRadialGradient(0,0,0,0,0,75*s);g.addColorStop(0,`rgba(255,185,90,${.5*fl})`);g.addColorStop(1,'rgba(255,185,90,0)');
+  ctx.fillStyle=g;ctx.fillRect(-80*s,-80*s,160*s,160*s);ctx.globalCompositeOperation='source-over';
+  g=ctx.createLinearGradient(0,-18*s,0,16*s);g.addColorStop(0,'#ffe6a3');g.addColorStop(1,'#ff8a3d');
+  ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-13*s,-18*s);ctx.lineTo(13*s,-18*s);ctx.quadraticCurveTo(19*s,0,10*s,16*s);ctx.lineTo(-10*s,16*s);ctx.quadraticCurveTo(-19*s,0,-13*s,-18*s);ctx.fill();
+  ctx.fillStyle='#fff4b8';ctx.beginPath();ctx.arc(0,15*s,3*s*fl,0,6.3);ctx.fill();
+  ctx.restore();}
+ requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* ---- UI ---- */
+const show=(el,on)=>{el.classList.toggle('hidden',!on);el.classList.toggle('flex',on);};
+const closeAll=()=>{show($('#modal'),false);show($('#card'),false);};
+document.querySelectorAll('.xclose').forEach(b=>b.onclick=closeAll);
+[$('#modal'),$('#card')].forEach(m=>m.addEventListener('pointerdown',e=>{if(e.target===m)closeAll();}));
+let toastT;function toast(m){const el=$('#toast');el.textContent=m;el.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>el.style.opacity=0,3200);}
+
+let chosen=0;
+const box=$('#styles');
+NAMES.forEach((n,i)=>{const b=document.createElement('button');b.className='sty glass rounded-2xl p-1.5 flex flex-col items-center gap-1 border transition'+(i==0?' on':'');
+ b.innerHTML=svgK(i,64)+`<span class="text-[10px] leading-tight text-white/80">${n}</span>`;
+ b.onclick=()=>{chosen=i;box.querySelectorAll('.sty').forEach((x,j)=>x.classList.toggle('on',j==i));};box.appendChild(b);});
+
+$('#open').onclick=()=>show($('#modal'),true);
+$('#lantern').onclick=()=>{lantern();toast('โคมลอยขึ้นสู่ท้องฟ้าแล้ว 🏮');};
+$('#release').onclick=()=>{
+ const n1=$('#n1').value.trim()||'[ชื่อคุณ]',n2=$('#n2').value.trim()||'[ชื่อแฟน]';
+ const msg=$('#wish').value.trim()||'ขอให้เรามีความสุขด้วยกันไปตลอดนะ';
+ addK({type:chosen,d:.6+rnd()*.25,x:w*(.3+rnd()*.4),names:`— ${n1} & ${n2} 💕`,msg,mine:true},1);
+ closeAll();toast('กระทงของเราลอยแล้ว 🕯️ แตะที่กระทงเพื่ออ่านคำอวยพร');
+ notify(n1,n2,msg,NAMES[chosen]);
+};
+$('#hide').onclick=()=>{closeAll();document.body.classList.add('hide');toast('แตะปุ่มจางๆ มุมขวาล่างเพื่อเรียก UI กลับ');};
+$('#show').onclick=()=>document.body.classList.remove('hide');
+addEventListener('keydown',e=>{if(e.key=='Escape'){closeAll();document.body.classList.remove('hide');}});
+
+/* คลิกที่กระทง */
+function hit(x,y){for(let i=ks.length-1;i>=0;i--){const k=ks[i],{dw,dh,by}=geo(k);if(k.drop>0)continue;if(Math.abs(x-k.x)<dw*.5&&Math.abs(y-(by-dh*.35))<dh*.5)return k;}return null;}
+cv.addEventListener('pointerdown',e=>{const k=hit(e.clientX,e.clientY);if(k){$('#cMsg').textContent=k.msg;$('#cName').textContent=k.names;show($('#card'),true);}});
+cv.addEventListener('pointermove',e=>{cv.style.cursor=hit(e.clientX,e.clientY)?'pointer':'default';});
+</script>
+</body>
+</html>
